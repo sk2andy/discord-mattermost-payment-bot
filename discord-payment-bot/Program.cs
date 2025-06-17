@@ -17,7 +17,11 @@ var connString = builder.Configuration.GetConnectionString("BotDatabase")
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(connString));
 
-builder.Services.AddSingleton<DiscordSocketClient>();
+var client = new DiscordSocketClient(new DiscordSocketConfig {
+    GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMembers | GatewayIntents.GuildMessages,
+    AlwaysDownloadUsers = true
+});
+builder.Services.AddSingleton(client);
 builder.Services.AddSingleton<ReminderService>();
 builder.Services.AddSingleton<DeactivationService>();
 builder.Services.AddHostedService<BotService>();

@@ -9,4 +9,6 @@ public class BotOptions
     public int[] ReminderDays { get; set; }
     public int DeactivationDays { get; set; }
     public DeactivationType DeactivationType { get; set; }
+    
+    public ulong ModChannelId { get; set; }
 }

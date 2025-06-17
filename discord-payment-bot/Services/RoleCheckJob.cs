@@ -1,6 +1,7 @@
 using discord_payment_bot.Models;
 using Discord.WebSocket;
 using Microsoft.Extensions.Options;
+using Quartz.Xml.JobSchedulingData20;
 
 namespace discord_payment_bot.Services;
 
@@ -30,7 +31,8 @@ public class RoleCheckJob : Quartz.IJob
     {
         _logger.LogInformation("Start checking roles for guild {GuildId} at {DateTime}", 
             _config.GuildId, DateTimeOffset.Now);
-        
+
+        var guilds = _discord.Guilds;
         var guild = _discord.GetGuild(_config.GuildId);
         if (guild == null)
         {
@@ -45,7 +47,7 @@ public class RoleCheckJob : Quartz.IJob
         }
         
         var usersWithRole = guild.Users.Where(u => u.Roles.Any(r => r.Id == role.Id)).ToList();
-        
+
         var trackedIds = usersWithRole.Select(u => u.Id).ToHashSet();
         var obsoleteEntries = _db.RoleAssignments
             .Where(entry => !trackedIds.Contains(entry.UserId))
@@ -67,11 +69,14 @@ public class RoleCheckJob : Quartz.IJob
                     Id = Guid.NewGuid(), 
                     UserId = user.Id, 
                     AssignedDate = DateTime.UtcNow, 
-                    LastReminderDaySent = DateTimeOffset.MinValue
+                    LastReminderDaySent = DateTimeOffset.MinValue,
+                    RoleNames = user.Roles.Select(r => r.Name).ToArray()
                 };
                 _db.RoleAssignments.Add(entry);
                 _logger.LogInformation("New user in role {Role}: UserId={UserId}",_config.RoleName,  user.Id);
             }
+            
+            if(entry.DeactivationAction is not null) continue;
             
             var daysInRole = (DateTime.UtcNow - entry.AssignedDate).TotalDays;
 
@@ -89,11 +94,13 @@ public class RoleCheckJob : Quartz.IJob
             _logger.LogInformation("User {User} is longer than {Days} days in role {Role}. Action: {Action}",
                 user.Id, _config.DeactivationDays, _config.RoleName , _config.DeactivationType);
             await _deactivationService.DeactivateUserAsync(user, role, _config.DeactivationType);
-                
-            _db.RoleAssignments.Remove(entry);
+
+            entry.DeactivationAction = _config.DeactivationType.ToString();
+            entry.DeactivatedAt = DateTimeOffset.UtcNow;
         }
         
         await _db.SaveChangesAsync();
-        _logger.LogInformation("Rollen-Prüfung abgeschlossen.");
-    }
+        _logger.LogInformation("Finished checking roles for guild {GuildId} at {DateTimeOffset}",
+            _config.GuildId, DateTimeOffset.Now);
+        }
 }

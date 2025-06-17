@@ -2,7 +2,7 @@ using Discord.WebSocket;
 
 namespace discord_payment_bot.Services;
 
-public abstract class ReminderService
+public class ReminderService
 {
     private readonly ILogger<ReminderService> _logger;
 

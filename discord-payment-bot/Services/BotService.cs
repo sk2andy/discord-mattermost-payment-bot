@@ -11,14 +11,13 @@ public class BotService : BackgroundService
     private readonly string _botToken;
     private readonly ILogger<BotService> _logger;
 
-    public BotService(IOptions<BotOptions> botOptions, ILogger<BotService> logger)
+    public BotService(
+        DiscordSocketClient client,
+        IOptions<BotOptions> botOptions, ILogger<BotService> logger)
     {
+        _client = client;
         _botToken = botOptions.Value.BotToken;
         _logger = logger;
-        
-        _client = new DiscordSocketClient(new DiscordSocketConfig {
-            GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMembers | GatewayIntents.GuildMessages
-        });
 
         // Optional: Event-Handler for logging
         _client.Log += message => {

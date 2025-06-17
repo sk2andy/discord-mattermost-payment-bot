@@ -7,5 +7,6 @@ public enum DeactivationType
 {
     RemoveRole,
     Kick,
-    Ban
+    Ban,
+    NotifyMods
 }
