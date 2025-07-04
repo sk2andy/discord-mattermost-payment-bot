@@ -1,6 +1,6 @@
 namespace discord_payment_bot.Models;
 
-public class RoleAssignment
+public class RoleAssignment : ITimestamped
 {
     public Guid Id { get; set; }
     public ulong UserId { get; set; }
@@ -9,4 +9,6 @@ public class RoleAssignment
     public DateTimeOffset? LastReminderDaySent { get; set; }
     public string? DeactivationAction { get; set; }
     public DateTimeOffset? DeactivatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }

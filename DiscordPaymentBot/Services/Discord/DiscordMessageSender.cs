@@ -3,7 +3,7 @@ using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Options;
 
-namespace discord_payment_bot.Services;
+namespace discord_payment_bot.Services.Discord;
 
 public class DiscordMessageSender
 {

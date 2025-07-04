@@ -1,4 +1,5 @@
 using discord_payment_bot.Models;
+using discord_payment_bot.Services.Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Options;
 

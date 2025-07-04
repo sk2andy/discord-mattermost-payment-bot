@@ -8,9 +8,8 @@ public class MattermostAccessTokenProvider: IAccessTokenProvider
 {
     private readonly string _token;
 
-    public MattermostAccessTokenProvider(IOptions<MattermostOptions> options, AllowedHostsValidator allowedHostsValidator)
+    public MattermostAccessTokenProvider(IOptions<MattermostOptions> options)
     {
-        AllowedHostsValidator = allowedHostsValidator;
         _token = options.Value.Token;
     }
     

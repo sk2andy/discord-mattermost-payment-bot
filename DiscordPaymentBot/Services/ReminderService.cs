@@ -1,3 +1,4 @@
+using Discord.Net;
 using Discord.WebSocket;
 
 namespace discord_payment_bot.Services;
@@ -21,7 +22,7 @@ public class ReminderService
                           paymentLink;
             await dmChannel.SendMessageAsync(message);
         }
-        catch (Discord.Net.HttpException ex)
+        catch (HttpException ex)
         {
             if (ex.HttpCode == System.Net.HttpStatusCode.Forbidden)
             {

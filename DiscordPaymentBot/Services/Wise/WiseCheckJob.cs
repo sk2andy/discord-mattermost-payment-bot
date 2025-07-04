@@ -2,7 +2,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using discord_payment_bot.Models;
 using discord_payment_bot.Models.Wise;
+using discord_payment_bot.Services.Discord;
 using discord_payment_bot.Services.Mattermost;
+using discord_payment_bot.Services.Orchestration;
 using Microsoft.Extensions.Options;
 using Quartz;
 
@@ -13,9 +15,9 @@ public class WiseCheckJob : IJob
     private readonly WiseApi _paymentApi;
     private readonly AppDbContext _dbContext;
     private readonly ILogger<WiseCheckJob> _logger;
+    private readonly RegistrationOrchestrator _registrationOrchestrator;
     private readonly RefundService _refundService;
     private readonly IOptions<BotOptions> _botOptions;
-    private readonly CreateMattermostUserService _mattermostUserService;
     private readonly DiscordMessageSender _discordMessageSender;
     private static readonly Regex UserIdRegex = new(@"\b(\d{17,20})\b", RegexOptions.Compiled);
     const string DeviceFingerPrintSettingsKey = "WiseDeviceFingerprint";
@@ -24,9 +26,9 @@ public class WiseCheckJob : IJob
         IPaymentApi paymentApi,
         AppDbContext dbContext,
         ILogger<WiseCheckJob> logger,
+        RegistrationOrchestrator registrationOrchestrator,
         RefundService refundService,
         IOptions<BotOptions> botOptions,
-        CreateMattermostUserService mattermostUserService,
         DiscordMessageSender discordMessageSender
         )
     {
@@ -34,9 +36,9 @@ public class WiseCheckJob : IJob
             ?? throw new ArgumentException("IPaymentApi must be of type WiseApi", nameof(paymentApi));;
         _dbContext = dbContext;
         _logger = logger;
+        _registrationOrchestrator = registrationOrchestrator;
         _refundService = refundService;
         _botOptions = botOptions;
-        _mattermostUserService = mattermostUserService;
         _discordMessageSender = discordMessageSender;
     }
 
@@ -45,13 +47,13 @@ public class WiseCheckJob : IJob
         await RegisterDeviceFingerprintAsync(context.CancellationToken);
 
         var since = DateTime.UtcNow.AddDays(-7);
-        var transactions = await _paymentApi.GetIncomeTransactionsAsync(since, 0);
+        var transactions = await _paymentApi.GetIncomeTransactionsAsync(since, 0, cancellationToken: context.CancellationToken);
         foreach (var tx in transactions)
         {
             var userId = ExtractUserId(tx.Reference) ?? ExtractUserId(tx.PaymentReference);
             if (!userId.HasValue)
             {
-                await HandleNotFoundUserIdAsync(tx);
+                await HandleNotFoundUserIdAsync(tx, context.CancellationToken);
                 continue;
             }
             
@@ -59,24 +61,24 @@ public class WiseCheckJob : IJob
                 continue;
             if (!string.Equals(tx.Currency, "USD", StringComparison.OrdinalIgnoreCase))
             {
-                await RefundWrongCurrencyPaymentAsync(tx, userId);
+                await RefundWrongCurrencyPaymentAsync(tx, userId, context.CancellationToken);
                 continue;
             }
             tx.UserId = userId.Value;
             tx.Id = Guid.NewGuid();
-            await _dbContext.WiseTransactions.AddAsync(tx);
+            await _dbContext.WiseTransactions.AddAsync(tx, context.CancellationToken);
             _logger.LogInformation("Saved new Wise transaction for {UserId}: {Amount} at {PaymentDate}", userId, tx.Amount, tx.PaymentDate);
 
             if (tx.Amount >= _botOptions.Value.PaymentAmount)
             {
-                await ProcessCompletePaymentAsync(userId, tx);
+                await ProcessCompletePaymentAsync(userId, tx, context.CancellationToken);
             }
             else
             {
-                await ProcessIncompletePaymentAsync(userId, tx);
+                await ProcessIncompletePaymentAsync(userId, tx, context.CancellationToken);
             }
         }
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(context.CancellationToken);
     }
 
     private async Task RegisterDeviceFingerprintAsync(CancellationToken cancellationToken = default)
@@ -94,22 +96,22 @@ public class WiseCheckJob : IJob
         }
     }
 
-    private async Task HandleNotFoundUserIdAsync(Transaction tx)
+    private async Task HandleNotFoundUserIdAsync(Transaction tx, CancellationToken cancellationToken = default)
     {
         _logger.LogWarning("Could not find user with id: {PaymentReference}", tx.PaymentReference);
         await _discordMessageSender.SendModChannelMessageAsync(
-            $"Could not find user ID in Wise transaction reference: {tx.Reference} or payment reference: {tx.PaymentReference}. Transaction details: {tx.Amount} USD on {tx.PaymentDate:O}");
+            $"Could not find user ID in Wise transaction reference: {tx.Reference} or payment reference: {tx.PaymentReference}. Transaction details: {tx.Amount} USD on {tx.PaymentDate:O}", cancellationToken);
     }
 
-    private async Task RefundWrongCurrencyPaymentAsync(Transaction tx, [DisallowNull] ulong? userId)
+    private async Task RefundWrongCurrencyPaymentAsync(Transaction tx, [DisallowNull] ulong? userId, CancellationToken cancellationToken = default)
     {
         _logger.LogWarning($"Wrong currency {tx.Currency} for transaction {tx.Reference}, starting refund...");
         await _discordMessageSender.SendDirectMessageAsync(userId.Value,
             $"Your Wise transaction was in the wrong currency ({tx.Currency}). We are processing a refund. Please only use USD", CancellationToken.None);
-        await _refundService.ProcessRefundAsync(tx);
+        await _refundService.ProcessRefundAsync(tx, cancellationToken);
     }
 
-    private async Task ProcessIncompletePaymentAsync([DisallowNull] ulong? userId, Transaction tx)
+    private async Task ProcessIncompletePaymentAsync([DisallowNull] ulong? userId, Transaction tx, CancellationToken cancellationToken = default)
     {
         var twoMonthsAgo = DateTime.UtcNow.AddMonths(-2);
         var userPayments = _dbContext.WiseTransactions
@@ -120,7 +122,7 @@ public class WiseCheckJob : IJob
         if (totalPaid + tx.Amount >= _botOptions.Value.PaymentAmount)
         {
             _logger.LogInformation("User {UserId} has completed the payment with total amount: {PayedAmount} USD", userId, totalPaid + tx.Amount);
-            await ProcessCompletePaymentAsync(userId, tx);
+            await ProcessCompletePaymentAsync(userId, tx, cancellationToken);
         }
         else
         {
@@ -130,14 +132,15 @@ public class WiseCheckJob : IJob
         }
     }
 
-    private async Task ProcessCompletePaymentAsync([DisallowNull] ulong? userId, Transaction tx)
+    private async Task ProcessCompletePaymentAsync([DisallowNull] ulong? userId, Transaction tx, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Transaction matches payment amount for user {UserId}: {Amount} USD", userId, tx.Amount);
         await _discordMessageSender.SendDirectMessageAsync(userId.Value,
-            $"Your Wise transaction of {tx.Amount} USD has been confirmed. We are starting the Mattermost user creation process.");
+            $"Your Wise transaction of {tx.Amount} USD has been confirmed. We are starting the Mattermost user creation process.", cancellationToken);
         _logger.LogInformation("Starting Mattermost user creation process for Discord user ID {DiscordUserId}", userId.Value);
-        //await _mattermostUserService.StartCreationProcessAsync();
-        _logger.LogInformation("Payment confirmation sent and Mattermost user creation started for user {UserId}", userId);
+
+        await _registrationOrchestrator.StartRegisterUserAsync(tx, userId.Value, cancellationToken);
+        
     }
 
     private static ulong? ExtractUserId(string? text)

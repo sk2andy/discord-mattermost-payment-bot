@@ -2,17 +2,29 @@ using discord_payment_bot.Models;
 using discord_payment_bot.Models.Converters;
 using discord_payment_bot.Models.Wise;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace discord_payment_bot.Services;
 
 public class AppDbContext : DbContext
 {
+    private readonly string? _connectionString;
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
     public DbSet<Transaction> WiseTransactions => Set<Transaction>();
     public DbSet<ApplicationSetting> ApplicationSettings => Set<ApplicationSetting>();
+    public DbSet<ServerMember> ServerMembers => Set<ServerMember>();
 
-    public AppDbContext(DbContextOptions<AppDbContext> options) 
-        : base(options) { }
+    public AppDbContext(IOptions<DatabaseOptions> options)
+    {
+        _connectionString = options.Value.ConnectionString;
+    }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlite(_connectionString)
+            .AddInterceptors(new TimestampSaveChangesInterceptor());
+        base.OnConfiguring(optionsBuilder);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +45,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Transaction>()
             .Property(ra => ra.UserId)
             .IsRequired();
+
+        modelBuilder.Entity<ServerMember>()
+            .HasKey(sm => sm.UserId);
         
         modelBuilder.Entity<ApplicationSetting>()
             .HasKey(ra => ra.Key);
