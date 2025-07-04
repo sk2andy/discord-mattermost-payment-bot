@@ -1,6 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "discord-payment-bot", "discord-payment-bot\discord-payment-bot.csproj", "{3D14FFA1-EF7F-4A41-8ACC-07CB308D12B7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscordPaymentBot", "DiscordPaymentBot\DiscordPaymentBot.csproj", "{3D14FFA1-EF7F-4A41-8ACC-07CB308D12B7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MattermostClient", "MattermostClient\MattermostClient.csproj", "{DE86B6D5-06BD-4CE1-B515-303ED0498C75}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -12,5 +14,9 @@ Global
 		{3D14FFA1-EF7F-4A41-8ACC-07CB308D12B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3D14FFA1-EF7F-4A41-8ACC-07CB308D12B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3D14FFA1-EF7F-4A41-8ACC-07CB308D12B7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE86B6D5-06BD-4CE1-B515-303ED0498C75}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE86B6D5-06BD-4CE1-B515-303ED0498C75}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE86B6D5-06BD-4CE1-B515-303ED0498C75}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE86B6D5-06BD-4CE1-B515-303ED0498C75}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

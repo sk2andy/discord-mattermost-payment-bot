@@ -3,3 +3,7 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+.idea
+DiscordPaymentBot/appsettings.Development.json
+DiscordPaymentBot/appsettings.Production.json
+.DS_Store
